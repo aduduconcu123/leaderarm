@@ -2,5 +2,22 @@ build/
 install/
 log/
 .vscode/
-*.pyc
+*.db
+
+# Generated ROS 2 workspace output
+/build/
+/install/
+/log/
+
+# Python caches and local build metadata
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Editor backups
+*.bak
+*.db-shm
+*.db-wal
+*.db.lock
 __pycache__/

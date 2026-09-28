@@ -29,7 +29,8 @@ from pathlib import Path
 
 import numpy as np
 
-from feetech_driver.calibration import CalibrationManager
+from feetech_driver import calibration as feetech_calibration
+from feetech_driver.calibration import CalibrationManager, encoder_offset
 
 
 # ============================================================
@@ -37,15 +38,15 @@ from feetech_driver.calibration import CalibrationManager
 # ============================================================
 
 CALIBRATION_FILE = (
-    Path(__file__).resolve().parent.parent
+    Path(feetech_calibration.__file__).resolve().parent.parent
     / "calibration"
     / "calibration.json"
 )
 
 MOTOR_IDS = {
     "J1": 1,
-    "J2": 2,
-    "J3": 3,
+    "J2": 3,
+    "J3": 2,
 }
 
 
@@ -451,7 +452,11 @@ class LeaderController:
         q = np.zeros(3)
 
         for index, motor_id in enumerate(
-            [1, 2, 3]
+            [
+                MOTOR_IDS["J1"],
+                MOTOR_IDS["J2"],
+                MOTOR_IDS["J3"],
+            ]
         ):
 
             if motor_id not in raw_positions:
@@ -494,11 +499,22 @@ class LeaderController:
 
             return False
 
-        return (
-            motor_calib.limit_min
-            <= raw
-            <= motor_calib.limit_max
+        delta = encoder_offset(
+            raw,
+            motor_calib.zero_raw,
         )
+
+        low = encoder_offset(
+            motor_calib.limit_min,
+            motor_calib.zero_raw,
+        )
+
+        high = encoder_offset(
+            motor_calib.limit_max,
+            motor_calib.zero_raw,
+        )
+
+        return low <= delta <= high
 
     # ========================================================
     # CHECK ALL MOTORS
@@ -516,7 +532,11 @@ class LeaderController:
             True if all positions are safe.
         """
 
-        for motor_id in [1, 2, 3]:
+        for motor_id in [
+            MOTOR_IDS["J1"],
+            MOTOR_IDS["J2"],
+            MOTOR_IDS["J3"],
+        ]:
 
             raw = raw_positions.get(
                 motor_id

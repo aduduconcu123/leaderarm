@@ -1,468 +1,474 @@
+#!/usr/bin/env python3
+"""ROS 2 teleop node from calibrated leader joints to Mirabo CAN motors."""
+
+from dataclasses import dataclass
 import math
 import struct
 import time
 
 import can
-
-from feetech_driver.motor import STS3250
-
-
-
-PORT = "/dev/ttyUSB0"
-BAUDRATE = 1000000
-
-FEETECH_ID = 3
-
-
-
-CAN_INTERFACE = "can0"
-CAN_BITRATE = 500000
-
-GIM_NODE_ID = 2
-
-
-
-
-GIM_DIRECTION = 1.0
-
-GIM_SCALE = 8.0
-
-GIM_OFFSET = 0.0
-
-
-
-GIM_MIN_ANGLE_DEG = -90.0
-GIM_MAX_ANGLE_DEG = 90.0
-
-MAX_STEP_DEG = 40.0
-
-CONTROL_RATE = 50.0
-
-
-
-class GIM6010:
-
-    CMD_SET_AXIS_STATE = 0x007
-    CMD_SET_INPUT_POS = 0x00C
-    CMD_SET_CONTROLLER_MODE = 0x00B
-
-    AXIS_STATE_IDLE = 1
-    AXIS_STATE_CLOSED_LOOP = 8
-
-    def __init__(
-        self,
-        channel="can0",
-        bitrate=500000,
-        node_id=2,
-    ):
-
-        self.channel = channel
-        self.bitrate = bitrate
-        self.node_id = node_id
-
-        self.bus = None
-        self.current_target = 0.0
-
-
-    def can_id(self, cmd_id):
-        return (self.node_id << 5) + cmd_id
-
-
-    def connect(self):
-
-        print()
-        print("------------------------------------------")
-        print(" Connecting GIM6010-8")
-        print("------------------------------------------")
-
-        self.bus = can.Bus(
-            interface="socketcan",
-            channel=self.channel,
-        )
-
-        print(f"CAN interface : {self.channel}")
-        print(f"CAN bitrate   : {self.bitrate}")
-        print(f"GIM node ID   : {self.node_id}")
-        print("GIM CAN: OK")
-        print()
-
-
-    def send(self, arbitration_id, data):
-
-        if self.bus is None:
-            raise RuntimeError("GIM CAN bus is not connected.")
-
-        if len(data) != 8:
-            raise ValueError("CAN frame must contain 8 bytes.")
-
-        msg = can.Message(
-            arbitration_id=arbitration_id,
-            data=data,
-            is_extended_id=False,
-        )
-
-        self.bus.send(msg)
-
-
-    def set_position_mode(self):
-
-        can_id = self.can_id(
-            self.CMD_SET_CONTROLLER_MODE
-        )
-
-        data = bytes([
-            0x03, 0x00, 0x00, 0x00,
-            0x03, 0x00, 0x00, 0x00,
-        ])
-
-        self.send(can_id, data)
-
-        print(
-            f"GIM position mode "
-            f"(CAN 0x{can_id:03X})"
-        )
-
-
-    def enable(self):
-
-        can_id = self.can_id(
-            self.CMD_SET_AXIS_STATE
-        )
-
-        data = struct.pack(
-            "<I",
-            self.AXIS_STATE_CLOSED_LOOP,
-        ) + bytes(4)
-
-        self.send(can_id, data)
-
-        print(
-            f"GIM closed-loop "
-            f"(CAN 0x{can_id:03X})"
-        )
-
-
-    def disable(self):
-
-        can_id = self.can_id(
-            self.CMD_SET_AXIS_STATE
-        )
-
-        data = struct.pack(
-            "<I",
-            self.AXIS_STATE_IDLE,
-        ) + bytes(4)
-
-        try:
-            self.send(can_id, data)
-        except Exception:
-            pass
-
-
-    def set_position(
-        self,
-        position_rev,
-        velocity_ff=0,
-        torque_ff=0,
-    ):
-
-        can_id = self.can_id(
-            self.CMD_SET_INPUT_POS
-        )
-
-        data = struct.pack(
-            "<fHH",
-            float(position_rev),
-            int(velocity_ff),
-            int(torque_ff),
-        )
-
-        self.send(can_id, data)
-
-        self.current_target = position_rev
-
-
-    def close(self):
-
-        try:
-            self.disable()
-        except Exception:
-            pass
-
-        if self.bus is not None:
-
-            try:
-                self.bus.shutdown()
-            except Exception:
-                pass
-
-            self.bus = None
-
+from leader_controller import mapping
+from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
+import rclpy
+from rclpy.clock import Clock, ClockType
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from sensor_msgs.msg import JointState
+from std_msgs.msg import String
 
 
 def clamp(value, minimum, maximum):
+    """Clamp value to [minimum, maximum]."""
     return max(minimum, min(value, maximum))
 
 
-def raw_to_degrees(raw):
-
-    return raw * 360.0 / 4095.0
-
-
-def degrees_to_radians(deg):
-    return math.radians(deg)
+def joint_delta_to_can_delta(delta_deg):
+    """Convert output joint delta to CAN angle delta."""
+    if mapping.CAN_ANGLE_IS_MOTOR_SHAFT:
+        return delta_deg * mapping.GEAR_RATIO
+    return delta_deg
 
 
-def radians_to_revolutions(rad):
-    return rad / (2.0 * math.pi)
-
-
-
-def main():
-
-    print()
-    print("==========================================")
-    print(" FEETECH J1 → GIM6010-8 TELEOP TEST")
-    print("==========================================")
-    print()
-
-    motor = None
-    gim = None
-
+def pack_position_command(angle_deg, speed, accel):
+    """Pack Mirabo extended-CAN position command payload."""
+    if not all(math.isfinite(value) for value in (angle_deg, speed, accel)):
+        raise ValueError('CAN command values must be finite')
     try:
+        # Match C++'s float argument, then its truncating integer conversion.
+        cpp_angle = struct.unpack('>f', struct.pack('>f', angle_deg))[0]
+        return struct.pack(
+            '>ihh', int(cpp_angle * 10000.0),
+            int(speed / 10.0), int(accel / 10.0),
+        )
+    except (struct.error, OverflowError) as exc:
+        raise ValueError('CAN command exceeds its integer range') from exc
 
 
-        print(
-            f"Connecting Feetech J1 "
-            f"(ID {FEETECH_ID})..."
+def unpack_feedback(data):
+    """Unpack Mirabo feedback: angle in degrees and fault byte."""
+    if len(data) != 8:
+        raise ValueError('Mirabo feedback payload must contain 8 bytes')
+    raw_angle = struct.unpack('>h', bytes(data[:2]))[0]
+    return raw_angle / 10.0, int(data[7])
+
+
+@dataclass
+class MotorFeedback:
+    """Most recent feedback from one Mirabo motor."""
+
+    angle_deg: float = math.nan
+    fault: int = 0
+    stamp_sec: float = -math.inf
+
+
+class MiraboTeleop(Node):
+    """Bridge /leader/joint_states to Mirabo position commands on can0."""
+
+    def __init__(self, **kwargs):
+        super().__init__('leader_mirabo_teleop', **kwargs)
+
+        self.declare_parameter(
+            'armed', False,
+            ParameterDescriptor(
+                description='Enable at runtime only after inputs are ready; '
+                'startup overrides are ignored. False stops commands, '
+                'but does not disable torque.'
+            ),
+            ignore_override=True,
         )
 
-        motor = STS3250(
-            port=PORT,
-            baudrate=BAUDRATE,
-            motor_id=FEETECH_ID,
-        )
-
-        if not motor.ping():
-            raise RuntimeError(
-                "Feetech J1 does not respond."
+        try:
+            self.bus = can.Bus(
+                interface='socketcan',
+                channel=mapping.CAN_INTERFACE,
+                bitrate=mapping.CAN_BITRATE,
+                ignore_rx_error_frames=False,
+                ignore_config=True,
             )
+        except (can.CanError, OSError):
+            super().destroy_node()
+            raise
 
-        print("Feetech J1: OK")
+        self.feedback_by_id = {
+            item.feedback_id: MotorFeedback()
+            for item in mapping.MIRABO_JOINTS
+        }
+        self.leader_positions = {}
+        self.leader_stamp_sec = -math.inf
 
-        motor.disable_torque()
+        self.baseline_leader = {}
+        self.baseline_motor = {}
+        self.last_command = {}
+        self.internal_armed = False
+        self.last_fault_reason = ''
+        self.last_sent_stamps = None
+        self.add_on_set_parameters_callback(self.validate_parameters)
+        self.add_post_set_parameters_callback(self.parameters_changed)
 
-        print("Feetech torque: OFF")
-        print()
-
-
-        gim = GIM6010(
-            channel=CAN_INTERFACE,
-            bitrate=CAN_BITRATE,
-            node_id=GIM_NODE_ID,
+        self.leader_sub = self.create_subscription(
+            JointState,
+            '/leader/joint_states',
+            self.leader_callback,
+            1,
+        )
+        self.status_pub = self.create_publisher(
+            String,
+            '/leader_controller/mirabo_status',
+            10,
+        )
+        self.feedback_pub = self.create_publisher(
+            JointState,
+            '/leader_controller/mirabo_feedback',
+            10,
         )
 
-        gim.connect()
-
-        gim.set_position_mode()
-
-        time.sleep(0.1)
-
-        gim.enable()
-
-        time.sleep(0.2)
-
-        print()
-        print("GIM ready.")
-        print()
-
-
-        raw = motor.read_raw_position()
-
-        if raw is None:
-            raise RuntimeError(
-                "Cannot read Feetech J1 position."
-            )
-
-        initial_deg = raw_to_degrees(raw)
-
-        print(
-            f"Initial RAW : {raw}"
+        period = 1.0 / mapping.CONTROL_RATE_HZ
+        self.steady_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self.can_timer = self.create_timer(
+            0.005,
+            self.read_can_feedback,
+            clock=self.steady_clock,
+        )
+        self.control_timer = self.create_timer(
+            period,
+            self.control_step,
+            clock=self.steady_clock,
         )
 
-        print(
-            f"Initial J1  : {initial_deg:.2f} deg"
+        self.get_logger().info(
+            "Mirabo teleop started disarmed. Set parameter 'armed' true "
+            'after /leader/joint_states and both CAN feedback frames are live.'
+        )
+        self.get_logger().info(
+            f'CAN angle scale={joint_delta_to_can_delta(1.0):g}; '
+            f'gear ratio={mapping.GEAR_RATIO:g}. '
+            'Stopping commands does not disable torque.'
+        )
+        self.get_logger().warning(
+            'J2 sign uses the existing mapping; confirm on the real machine. '
+            'CAN limits are software limits from the C++ implementation.'
         )
 
-
-        zero_raw = raw
-        previous_raw = raw
-        accumulated_raw = 0
-
-        print()
-        print(
-            "Current Feetech position = GIM zero."
-        )
-        print(
-            "Move J1 slowly."
-        )
-        print()
-
-
-        target_angle = 0.0
-
-        gim.set_position(
-            radians_to_revolutions(
-                target_angle
-            )
-        )
-
-        print("------------------------------------------")
-        print(" TELEOP ACTIVE")
-        print("------------------------------------------")
-        print()
-        print("J1 → GIM link : 1:1")
-        print("Link range: -90° ... +90°")
-        print("Press Ctrl+C to stop.")
-        print()
-
-
-        period = 1.0 / CONTROL_RATE
-
-        while True:
-
-            loop_start = time.monotonic()
-
-
-            raw = motor.read_raw_position()
-
-            if raw is None:
-                raise RuntimeError(
-                    "Cannot read Feetech J1."
+    def validate_parameters(self, parameters):
+        for parameter in parameters:
+            if parameter.name != 'armed':
+                continue
+            if parameter.type_ != Parameter.Type.BOOL:
+                return SetParametersResult(
+                    successful=False, reason='armed must be a bool'
                 )
+            if parameter.value:
+                ready, reason = self.ready()
+                if not ready:
+                    return SetParametersResult(
+                        successful=False, reason=reason
+                    )
+        return SetParametersResult(successful=True)
 
+    def parameters_changed(self, parameters):
+        for parameter in parameters:
+            if parameter.name == 'armed':
+                self.last_fault_reason = ''
+                if not parameter.value:
+                    self.internal_armed = False
+                    self.last_sent_stamps = None
+                    self.get_logger().info(
+                        'Disarmed: commands stopped; torque is unchanged.'
+                    )
 
-            delta_raw = raw - previous_raw
+    def leader_callback(self, msg):
+        names = list(msg.name)
+        # An invalid message must not leave the previous sample armable.
+        self.leader_positions = {}
+        self.leader_stamp_sec = -math.inf
+        if len(msg.position) != len(names):
+            self.disarm('leader JointState has mismatched name/position')
+            return
+        if len(set(names)) != len(names):
+            self.disarm('leader JointState has duplicate names')
+            return
 
-            if delta_raw > 2048:
-                delta_raw -= 4096
-            elif delta_raw < -2048:
-                delta_raw += 4096
-
-            accumulated_raw += delta_raw
-            previous_raw = raw
-
-            leader_deg = (
-                accumulated_raw
-                * 360.0
-                / 4095.0
-            )
-
-            output_deg = leader_deg * GIM_DIRECTION
-
-            output_deg = clamp(
-                output_deg,
-                GIM_MIN_ANGLE_DEG,
-                GIM_MAX_ANGLE_DEG,
-            )
-
-            target_deg = output_deg * GIM_SCALE
-
-            current_deg = gim.current_target * 360.0
-            difference = target_deg - current_deg
-
-            if difference > MAX_STEP_DEG:
-                target_deg = current_deg + MAX_STEP_DEG
-            elif difference < -MAX_STEP_DEG:
-                target_deg = current_deg - MAX_STEP_DEG
-
-            target_rad = degrees_to_radians(
-                target_deg
-            )
-
-            target_rev = (
-                radians_to_revolutions(
-                    target_rad
+        positions = dict(zip(names, msg.position))
+        for item in mapping.MIRABO_JOINTS:
+            if item.leader_joint not in positions:
+                self.disarm(
+                    f'leader JointState missing {item.leader_joint}'
                 )
+                return
+            if not math.isfinite(positions[item.leader_joint]):
+                self.disarm(
+                    f'leader JointState has invalid {item.leader_joint}'
+                )
+                return
+
+        self.leader_positions = positions
+        self.leader_stamp_sec = self.now_sec()
+
+    def read_can_feedback(self):
+        try:
+            for _ in range(mapping.MAX_CAN_FRAMES_PER_READ):
+                msg = self.bus.recv(timeout=0.0)
+                if msg is None:
+                    return
+                # SocketCAN's Bus.state is always ACTIVE in python-can 4.3.1.
+                # Kernel error frames and feedback timeouts are also required.
+                if msg.is_error_frame:
+                    self.can_fault(
+                        f'CAN error frame 0x{msg.arbitration_id:X}, '
+                        f'data={msg.data.hex()}'
+                    )
+                    continue
+                if not msg.is_extended_id:
+                    continue
+                feedback = self.feedback_by_id.get(msg.arbitration_id)
+                if feedback is None:
+                    continue
+                if msg.is_remote_frame or msg.is_fd or msg.dlc != 8:
+                    feedback.stamp_sec = -math.inf
+                    self.disarm(
+                        f'invalid CAN feedback 0x{msg.arbitration_id:X}'
+                    )
+                    continue
+                try:
+                    angle_deg, fault = unpack_feedback(msg.data)
+                except ValueError as exc:
+                    feedback.stamp_sec = -math.inf
+                    self.disarm(
+                        f'invalid CAN feedback 0x{msg.arbitration_id:X}: {exc}'
+                    )
+                    continue
+                feedback.angle_deg = angle_deg
+                feedback.fault = fault
+                feedback.stamp_sec = self.now_sec()
+                if fault:
+                    item = self.mapping_for_feedback(msg.arbitration_id)
+                    self.disarm(
+                        f'Mirabo 0x{item.motor_id:02X} fault=0x{fault:02X}'
+                    )
+            self.can_fault('CAN receive backlog exceeds per-read limit')
+        except (can.CanError, OSError) as exc:
+            self.can_fault(f'CAN receive error: {exc}')
+
+    def control_step(self):
+        # Consume queued faults before considering either motor command.
+        self.read_can_feedback()
+        requested_armed = bool(self.get_parameter('armed').value)
+        ready, reason = self.ready()
+
+        if not requested_armed:
+            state = 'FAULT' if self.last_fault_reason else (
+                'READY' if ready else 'DISARMED'
+            )
+            self.publish_status(state, self.last_fault_reason or reason)
+            self.publish_feedback()
+            return
+
+        if not ready:
+            self.disarm(reason)
+            self.publish_status('FAULT')
+            self.publish_feedback()
+            return
+
+        if not self.internal_armed:
+            self.arm_from_current_positions()
+
+        stamps = (self.leader_stamp_sec,) + tuple(
+            self.feedback_by_id[item.feedback_id].stamp_sec
+            for item in mapping.MIRABO_JOINTS
+        )
+        if self.last_sent_stamps is not None and any(
+            current <= previous
+            for current, previous in zip(stamps, self.last_sent_stamps)
+        ):
+            self.publish_status('ARMED', 'waiting for new input samples')
+            self.publish_feedback()
+            return
+
+        try:
+            commands = [
+                (item, self.command_for_mapping(item))
+                for item in mapping.MIRABO_JOINTS
+            ]
+            for item, command_deg in commands:
+                self.send_position_command(item, command_deg)
+                self.last_command[item.motor_id] = command_deg
+            self.last_sent_stamps = stamps
+        except (can.CanError, OSError, ValueError) as exc:
+            self.can_fault(f'CAN command error: {exc}')
+
+        self.publish_status('ARMED' if self.internal_armed else 'FAULT')
+        self.publish_feedback()
+
+    def ready(self):
+        now = self.now_sec()
+        if self.bus.state != can.BusState.ACTIVE:
+            return False, f'CAN bus state is {self.bus.state.name}'
+        if now - self.leader_stamp_sec > mapping.LEADER_TIMEOUT_SEC:
+            return False, 'timeout waiting for /leader/joint_states'
+
+        for item in mapping.MIRABO_JOINTS:
+            if item.leader_joint not in self.leader_positions:
+                return False, f'missing leader {item.leader_joint}'
+            feedback = self.feedback_by_id[item.feedback_id]
+            if now - feedback.stamp_sec > mapping.FEEDBACK_TIMEOUT_SEC:
+                return False, (
+                    f'timeout waiting for Mirabo 0x{item.motor_id:02X}'
+                )
+            if feedback.fault:
+                return False, (
+                    f'Mirabo 0x{item.motor_id:02X} fault='
+                    f'0x{feedback.fault:02X}'
+                )
+            if not math.isfinite(feedback.angle_deg):
+                return False, f'missing Mirabo 0x{item.motor_id:02X} angle'
+            if not item.min_deg <= feedback.angle_deg <= item.max_deg:
+                return False, (
+                    f'Mirabo 0x{item.motor_id:02X} CAN angle '
+                    f'{feedback.angle_deg:g} outside software limits '
+                    f'[{item.min_deg:g}, {item.max_deg:g}]'
+                )
+        return True, ''
+
+    def arm_from_current_positions(self):
+        self.baseline_leader = {}
+        self.baseline_motor = {}
+        self.last_command = {}
+
+        for item in mapping.MIRABO_JOINTS:
+            leader_rad = self.leader_positions[item.leader_joint]
+            feedback = self.feedback_by_id[item.feedback_id]
+            self.baseline_leader[item.leader_joint] = math.degrees(
+                leader_rad
+            )
+            self.baseline_motor[item.motor_id] = feedback.angle_deg
+            self.last_command[item.motor_id] = feedback.angle_deg
+
+        self.internal_armed = True
+        self.last_sent_stamps = None
+        self.last_fault_reason = ''
+        self.get_logger().info(
+            'Armed Mirabo teleop from current leader and motor positions.'
+        )
+
+    def command_for_mapping(self, item):
+        leader_deg = math.degrees(
+            self.leader_positions[item.leader_joint]
+        )
+        leader_delta = leader_deg - self.baseline_leader[item.leader_joint]
+        target_delta = joint_delta_to_can_delta(
+            leader_delta * item.sign
+        )
+        target = self.baseline_motor[item.motor_id] + target_delta
+        target = clamp(target, item.min_deg, item.max_deg)
+
+        previous = self.last_command[item.motor_id]
+        max_step = mapping.MAX_STEP_DEG_PER_CYCLE
+        target = clamp(target, previous - max_step, previous + max_step)
+        return clamp(target, item.min_deg, item.max_deg)
+
+    def send_position_command(self, item, angle_deg):
+        if not self.internal_armed or not self.get_parameter('armed').value:
+            raise ValueError('cannot send a position command while disarmed')
+        if not math.isfinite(angle_deg) or not (
+            item.min_deg <= angle_deg <= item.max_deg
+        ):
+            raise ValueError('CAN position command is outside software limits')
+        data = pack_position_command(
+            angle_deg,
+            mapping.COMMAND_SPEED,
+            mapping.COMMAND_ACCEL,
+        )
+        msg = can.Message(
+            arbitration_id=item.command_id,
+            data=data,
+            is_extended_id=True,
+        )
+        self.bus.send(msg, timeout=0.0)
+
+    def publish_status(self, state, reason=''):
+        parts = [
+            f'state={state}',
+            f"armed_param={bool(self.get_parameter('armed').value)}",
+            f'internal_armed={self.internal_armed}',
+            f'leader_age_sec={self.now_sec() - self.leader_stamp_sec:.3f}',
+        ]
+        if reason or self.last_fault_reason:
+            parts.append(f'reason={reason or self.last_fault_reason}')
+
+        for item in mapping.MIRABO_JOINTS:
+            feedback = self.feedback_by_id[item.feedback_id]
+            parts.append(
+                f'0x{item.motor_id:02X}='
+                f'{feedback.angle_deg:.1f}CANdeg/'
+                f'fault=0x{feedback.fault:02X}/'
+                f'age_sec={self.now_sec() - feedback.stamp_sec:.3f}'
             )
 
-            gim.set_position(
-                target_rev,
-                0,
-                0,
+        msg = String()
+        msg.data = '; '.join(parts)
+        self.status_pub.publish(msg)
+
+    def publish_feedback(self):
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = [
+            f'mirabo_0x{item.motor_id:02X}'
+            for item in mapping.MIRABO_JOINTS
+        ]
+        msg.position = [
+            math.radians(
+                self.feedback_by_id[item.feedback_id].angle_deg
+                / joint_delta_to_can_delta(1.0)
             )
+            for item in mapping.MIRABO_JOINTS
+        ]
+        self.feedback_pub.publish(msg)
+
+    def disarm(self, reason):
+        if reason != self.last_fault_reason:
+            self.get_logger().warning(f'Mirabo teleop disarmed: {reason}')
+        self.internal_armed = False
+        self.last_sent_stamps = None
+        if self.get_parameter('armed').value:
+            self.set_parameters([Parameter('armed', value=False)])
+        self.last_fault_reason = reason
+
+    def can_fault(self, reason):
+        for feedback in self.feedback_by_id.values():
+            feedback.stamp_sec = -math.inf
+        self.disarm(reason)
+
+    def mapping_for_feedback(self, feedback_id):
+        for item in mapping.MIRABO_JOINTS:
+            if item.feedback_id == feedback_id:
+                return item
+        raise KeyError(feedback_id)
+
+    def now_sec(self):
+        return time.monotonic()
+
+    def destroy_node(self):
+        try:
+            self.bus.shutdown()
+        finally:
+            super().destroy_node()
 
 
-            print(
-                "\r"
-                f"RAW {raw:4d} | "
-                f"J1 {leader_deg:+7.2f}° → "
-                f"LINK {output_deg:+7.2f}° → "
-                f"GIM motor {target_deg:+7.2f}°",
-                end="",
-                flush=True,
-            )
-
-
-            elapsed = (
-                time.monotonic()
-                - loop_start
-            )
-
-            sleep_time = (
-                period
-                - elapsed
-            )
-
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
+def main(args=None):
+    """Run the Mirabo teleop ROS node."""
+    rclpy.init(args=args)
+    node = None
+    try:
+        node = MiraboTeleop()
+        rclpy.spin(node)
     except KeyboardInterrupt:
-
-        print()
-        print()
-        print("Stopping teleop...")
-
-    except Exception as e:
-
-        print()
-        print()
-        print(f"ERROR: {e}")
-
+        pass
     finally:
-
-        print()
-        print("Disabling GIM...")
-
-        if gim is not None:
-
-            try:
-                gim.disable()
-            except Exception:
-                pass
-
-            try:
-                gim.close()
-            except Exception:
-                pass
-
-        if motor is not None:
-
-            try:
-                motor.disable_torque()
-            except Exception:
-                pass
-
-            try:
-                motor.close()
-            except Exception:
-                pass
-
-        print("Feetech torque: OFF")
-        print("GIM: disabled")
-        print("Motors closed.")
-        print()
+        if node is not None:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
