@@ -1,0 +1,25 @@
+{
+    "motors": {
+        "1": {
+            "joint": "J1",
+            "zero_raw": 654,
+            "direction": 1,
+            "limit_min": 3427,
+            "limit_max": 1702
+        },
+        "3": {
+            "joint": "J2",
+            "zero_raw": 1503,
+            "direction": 1,
+            "limit_min": 245,
+            "limit_max": 2602
+        },
+        "2": {
+            "joint": "J3",
+            "zero_raw": 93,
+            "direction": 1,
+            "limit_min": 3024,
+            "limit_max": 1279
+        }
+    }
+}
