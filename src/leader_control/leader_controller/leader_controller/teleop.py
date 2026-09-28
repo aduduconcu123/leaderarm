@@ -4,13 +4,17 @@
 from dataclasses import dataclass
 import math
 import struct
+import sys
 import time
 
 import can
+from feetech_driver.node import FeetechNode
 from leader_controller import mapping
+from leader_state.state import LeaderState
 from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
 import rclpy
 from rclpy.clock import Clock, ClockType
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import JointState
@@ -64,8 +68,10 @@ class MotorFeedback:
 class MiraboTeleop(Node):
     """Bridge /leader/joint_states to Mirabo position commands on can0."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, arm_on_ready=False, **kwargs):
         super().__init__('leader_mirabo_teleop', **kwargs)
+
+        self.startup_arm_pending = arm_on_ready
 
         self.declare_parameter(
             'armed', False,
@@ -136,8 +142,10 @@ class MiraboTeleop(Node):
         )
 
         self.get_logger().info(
-            "Mirabo teleop started disarmed. Set parameter 'armed' true "
-            'after /leader/joint_states and both CAN feedback frames are live.'
+            'Mirabo teleop started disarmed. '
+            + ('--arm will enable when all inputs are ready.'
+               if arm_on_ready else
+               "Set parameter 'armed' true after all inputs are ready.")
         )
         self.get_logger().info(
             f'CAN angle scale={joint_delta_to_can_delta(1.0):g}; '
@@ -170,6 +178,7 @@ class MiraboTeleop(Node):
             if parameter.name == 'armed':
                 self.last_fault_reason = ''
                 if not parameter.value:
+                    self.startup_arm_pending = False
                     self.internal_armed = False
                     self.last_sent_stamps = None
                     self.get_logger().info(
@@ -254,6 +263,14 @@ class MiraboTeleop(Node):
         self.read_can_feedback()
         requested_armed = bool(self.get_parameter('armed').value)
         ready, reason = self.ready()
+
+        if self.startup_arm_pending and ready and not requested_armed:
+            self.startup_arm_pending = False
+            result = self.set_parameters([Parameter('armed', value=True)])[0]
+            if result.successful:
+                requested_armed = True
+            else:
+                self.disarm(f'cannot arm at startup: {result.reason}')
 
         if not requested_armed:
             state = 'FAULT' if self.last_fault_reason else (
@@ -428,6 +445,7 @@ class MiraboTeleop(Node):
         if reason != self.last_fault_reason:
             self.get_logger().warning(f'Mirabo teleop disarmed: {reason}')
         self.internal_armed = False
+        self.startup_arm_pending = False
         self.last_sent_stamps = None
         if self.get_parameter('armed').value:
             self.set_parameters([Parameter('armed', value=False)])
@@ -455,16 +473,29 @@ class MiraboTeleop(Node):
 
 
 def main(args=None):
-    """Run the Mirabo teleop ROS node."""
-    rclpy.init(args=args)
-    node = None
+    """Run the Feetech, calibration and Mirabo nodes with one command."""
+    command_args = list(sys.argv[1:] if args is None else args)
+    arm_on_ready = '--arm' in command_args
+    ros_args = [arg for arg in command_args if arg != '--arm']
+
+    rclpy.init(args=ros_args)
+    nodes = []
+    executor = None
     try:
-        node = MiraboTeleop()
-        rclpy.spin(node)
+        nodes.append(FeetechNode())
+        nodes.append(LeaderState())
+        nodes.append(MiraboTeleop(arm_on_ready=arm_on_ready))
+
+        executor = MultiThreadedExecutor(num_threads=3)
+        for node in nodes:
+            executor.add_node(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
-        if node is not None:
+        if executor is not None:
+            executor.shutdown()
+        for node in reversed(nodes):
             node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

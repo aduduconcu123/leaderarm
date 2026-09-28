@@ -3,14 +3,17 @@
 from collections import deque
 import math
 import struct
+import time
 from types import SimpleNamespace
 
 import can
+import feetech_driver.node as feetech_node
 from leader_controller import mapping, teleop
 import pytest
 import rclpy
 from rclpy.clock import ClockType
 from rclpy.context import Context
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import JointState
 
@@ -356,3 +359,175 @@ def test_unrelated_can_traffic_is_ignored_but_backlog_is_bounded(rig):
     rig.node.control_step()
     assert 'backlog' in rig.status[-1].data
     assert not rig.bus.sent
+
+
+def test_startup_arm_waits_for_all_inputs(rig):
+    rig.node.startup_arm_pending = True
+    rig.node.control_step()
+    assert not rig.bus.sent
+    assert rig.node.startup_arm_pending
+
+    fresh_samples(rig)
+    rig.node.control_step()
+    assert rig.node.get_parameter('armed').value
+    assert not rig.node.startup_arm_pending
+    assert command_angles(rig) == [30.0, 40.0]
+
+
+def test_startup_fault_cancels_pending_arm(rig):
+    rig.node.startup_arm_pending = True
+    rig.bus.messages.append(can.Message(
+        arbitration_id=0x40, is_error_frame=True, data=bytes(8),
+    ))
+    rig.node.control_step()
+    assert not rig.node.startup_arm_pending
+    assert not rig.node.get_parameter('armed').value
+    fresh_samples(rig)
+    rig.node.control_step()
+    assert not rig.bus.sent
+
+
+def test_manual_disarm_cancels_pending_startup_arm(rig):
+    rig.node.startup_arm_pending = True
+    assert set_armed(rig, False).successful
+    fresh_samples(rig)
+    rig.node.control_step()
+    assert not rig.node.startup_arm_pending
+    assert not rig.node.get_parameter('armed').value
+    assert not rig.bus.sent
+
+
+def test_one_command_starts_and_closes_all_three_nodes(monkeypatch):
+    events = []
+
+    class StubNode:
+
+        def __init__(self, name, arm_on_ready=None):
+            self.name = name
+            events.append(('create', name, arm_on_ready))
+
+        def destroy_node(self):
+            events.append(('close', self.name))
+
+    class StubExecutor:
+
+        def __init__(self, num_threads):
+            events.append(('threads', num_threads))
+
+        def add_node(self, node):
+            events.append(('add', node.name))
+
+        def spin(self):
+            events.append(('spin',))
+
+        def shutdown(self):
+            events.append(('shutdown',))
+
+    monkeypatch.setattr(teleop, 'FeetechNode', lambda: StubNode('feetech'))
+    monkeypatch.setattr(teleop, 'LeaderState', lambda: StubNode('leader'))
+    monkeypatch.setattr(
+        teleop, 'MiraboTeleop',
+        lambda arm_on_ready: StubNode('mirabo', arm_on_ready),
+    )
+    monkeypatch.setattr(teleop, 'MultiThreadedExecutor', StubExecutor)
+    monkeypatch.setattr(
+        teleop.rclpy, 'init', lambda args: events.append(('init', args)),
+    )
+    monkeypatch.setattr(teleop.rclpy, 'ok', lambda: True)
+    monkeypatch.setattr(
+        teleop.rclpy, 'shutdown', lambda: events.append(('rclpy_shutdown',)),
+    )
+
+    teleop.main(['--arm', '--ros-args', '-p', 'port:=/dev/test'])
+
+    assert events == [
+        ('init', ['--ros-args', '-p', 'port:=/dev/test']),
+        ('create', 'feetech', None),
+        ('create', 'leader', None),
+        ('create', 'mirabo', True),
+        ('threads', 3),
+        ('add', 'feetech'),
+        ('add', 'leader'),
+        ('add', 'mirabo'),
+        ('spin',),
+        ('shutdown',),
+        ('close', 'mirabo'),
+        ('close', 'leader'),
+        ('close', 'feetech'),
+        ('rclpy_shutdown',),
+    ]
+
+
+def test_ros_chain_and_startup_arm_with_fake_hardware(monkeypatch):
+    bus = FakeBus()
+    raw_by_id = {1: 654, 3: 1503, 2: 93}
+    opened_protocols = []
+
+    class StubProtocol:
+
+        def __init__(self, **kwargs):
+            self.closed = False
+            opened_protocols.append(self)
+
+        def close(self):
+            self.closed = True
+
+    class StubMotor:
+
+        def __init__(self, motor_id, protocol):
+            self.motor_id = motor_id
+
+        def ping(self):
+            return True
+
+        def read_raw_position(self):
+            return raw_by_id[self.motor_id]
+
+    monkeypatch.setattr(teleop.can, 'Bus', lambda **kwargs: bus)
+    monkeypatch.setattr(feetech_node, 'FeetechProtocol', StubProtocol)
+    monkeypatch.setattr(feetech_node, 'STS3250', StubMotor)
+    bus.messages.extend([
+        feedback_frame(0x2968, 30.0), feedback_frame(0x2969, 40.0),
+    ])
+
+    rclpy.init(args=[], domain_id=232)
+    nodes = []
+    executor = None
+    try:
+        nodes.append(teleop.FeetechNode())
+        nodes.append(teleop.LeaderState())
+        nodes.append(teleop.MiraboTeleop(arm_on_ready=True))
+        executor = MultiThreadedExecutor(num_threads=3)
+        for node in nodes:
+            executor.add_node(node)
+
+        deadline = time.monotonic() + 2.0
+        while len(bus.sent) < 2 and time.monotonic() < deadline:
+            executor.spin_once(timeout_sec=0.01)
+        assert len(bus.sent) >= 2
+        assert [msg.arbitration_id for msg in bus.sent[:2]] == [0x668, 0x669]
+        assert [struct.unpack('>ihh', msg.data)[0] / 10000.0
+                for msg in bus.sent[:2]] == [30.0, 40.0]
+        assert nodes[2].get_parameter('armed').value
+
+        raw_by_id[3] += 11
+        raw_by_id[2] += 11
+        bus.messages.extend([
+            feedback_frame(0x2968, 30.0), feedback_frame(0x2969, 40.0),
+        ])
+        deadline = time.monotonic() + 2.0
+        while len(bus.sent) < 4 and time.monotonic() < deadline:
+            executor.spin_once(timeout_sec=0.01)
+        assert len(bus.sent) >= 4
+        joint2 = struct.unpack('>ihh', bus.sent[2].data)[0] / 10000.0
+        joint3 = struct.unpack('>ihh', bus.sent[3].data)[0] / 10000.0
+        assert joint2 > 30.0
+        assert joint3 < 40.0
+    finally:
+        if executor is not None:
+            executor.shutdown()
+        for node in reversed(nodes):
+            node.destroy_node()
+        rclpy.shutdown()
+    assert opened_protocols[0].closed
+    assert bus.closed

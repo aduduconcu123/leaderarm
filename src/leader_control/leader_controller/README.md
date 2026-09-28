@@ -1,6 +1,16 @@
 # Leader to Mirabo teleop
 
-The executable remains `ros2 run leader_controller teleop`.
+Run the full leader-to-Mirabo chain with one command:
+
+```bash
+ros2 run leader_controller teleop --arm
+```
+
+This starts the three ROS nodes in one process. The `--arm` flag expresses
+intent to move; startup sends no position command until the calibrated leader
+and both Mirabo feedback streams are fresh and fault-free. A startup fault
+cancels the pending arm request. Without `--arm`, the process starts all three
+nodes but stays disarmed until `armed` is set manually.
 
 ```text
 feetech_driver/node.py -> /feetech/joint_states (absolute encoder radians)
@@ -9,8 +19,8 @@ leader_controller/teleop.py + mapping.py -> SocketCAN can0 -> Mirabo
 ```
 
 `leader_state` uses `feetech_driver/calibration.py` and
-`feetech_driver/calibration/calibration.json`. The teleop node never opens
-the Feetech serial port and never recalibrates these joint angles.
+`feetech_driver/calibration/calibration.json`. The Feetech node in this process
+owns the serial port; the Mirabo node receives already calibrated joint angles.
 `controller.py` provides separate FK, COM and gravity calculations; it is not
 imported by the Mirabo position loop. Its gravity torque does not control Mirabo
 torque.
@@ -76,44 +86,49 @@ source ~/leader_ws/install/setup.bash
 `ip -details link show can0`. The node does not reconfigure the interface;
 passing `bitrate` to python-can SocketCAN does not change the kernel bitrate.
 
-Terminal 1:
+One terminal starts the complete chain:
 
 ```bash
-ros2 run feetech_driver feetech_node
+ros2 run leader_controller teleop --arm
 ```
 
-Terminal 2:
-
-```bash
-ros2 run leader_state leader_state
-```
-
-Terminal 3:
+To inspect feedback first without motion, omit `--arm`:
 
 ```bash
 ros2 run leader_controller teleop
 ```
 
-Terminal 4, status including raw CAN angles, fault codes and sample ages:
+The Feetech port defaults to `/dev/ttyUSB0`. For another port:
+
+```bash
+ros2 run leader_controller teleop --arm --ros-args -p port:=/dev/ttyUSB1
+```
+
+Do not also run a separate `feetech_node` or `leader_state` process alongside
+the one-command process. The Feetech serial port is already open and a second
+publisher could provide conflicting leader samples.
+
+From another terminal, inspect status including CAN angles and sample ages:
 
 ```bash
 ros2 topic echo /leader_controller/mirabo_status
 ```
 
-Terminal 5, output joint angles in radians under the configured angle convention:
+The feedback topic reports follower angles in radians:
 
 ```bash
 ros2 topic echo /leader_controller/mirabo_feedback
 ```
 
-Terminal 6, deliberate enable or stop:
+To stop commands or arm after starting without `--arm`:
 
 ```bash
 ros2 param set /leader_mirabo_teleop armed true
 ros2 param set /leader_mirabo_teleop armed false
 ```
 
-The node always starts disarmed, even with an `armed:=true` startup override.
+The node starts disarmed, even with an `armed:=true` ROS parameter override.
+`--arm` is handled at runtime once all streams pass the readiness checks.
 Arming is rejected until the leader and both feedback streams are fresh,
 fault-free and within the CAN software limits. At the first armed timer tick,
 the current leader and motor angles become the reference, so the first target

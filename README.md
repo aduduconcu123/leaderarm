@@ -17,6 +17,13 @@ leader_state -> /leader/joint_states
 leader_controller teleop -> can0 -> Mirabo 0x68 / 0x69
 ```
 
+One command starts all three ROS nodes in one process. Add `--arm` to enable
+Mirabo control once all input streams are ready:
+
+```bash
+ros2 run leader_controller teleop --arm
+```
+
 `leader_controller/leader_controller/controller.py` is retained for leader-arm
 forward kinematics, center-of-mass and gravity calculations. It is independent
 of the Mirabo position teleop loop.
