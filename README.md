@@ -36,10 +36,6 @@ It saves `~/.config/leader_controller/origin.json` without moving motors or
 changing their firmware zero. See the teleop guide for the safety checks and
 how to verify the new origin before arming.
 
-`leader_controller/leader_controller/controller.py` is retained for leader-arm
-forward kinematics, center-of-mass and gravity calculations. It is independent
-of the Mirabo position teleop loop.
-
 From a new terminal, build and load only this workspace over ROS Jazzy:
 
 ```bash

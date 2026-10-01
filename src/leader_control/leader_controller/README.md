@@ -27,10 +27,6 @@ Mirabo feedback angles. The Feetech calibration landmarks, motor firmware
 origin and absolute CAN position commands are unchanged.
 The Mirabo controller requires a valid origin file before arming by default;
 capture it explicitly with `calibrate_origin` before teleoperation.
-`controller.py` provides separate FK, COM and gravity calculations; it is not
-imported by the Mirabo position loop. Its gravity torque does not control Mirabo
-torque.
-
 ## Configuration
 
 Verified motor IDs and direction signs are in `leader_controller/mapping.py`.
