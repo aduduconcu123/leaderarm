@@ -27,9 +27,6 @@ setup(
     maintainer_email='ctp1234231510@gmail.com',
     description='Leader arm state aggregator',
     license='Apache-2.0',
-    tests_require=[
-        'pytest',
-    ],
     entry_points={
         'console_scripts': [
             'leader_state = leader_state.state:main',
