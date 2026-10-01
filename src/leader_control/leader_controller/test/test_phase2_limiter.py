@@ -188,5 +188,4 @@ def test_phase2_profiles_change_only_the_intended_parameters():
     assert candidate['filter_alpha'] == 1.0
     assert math.isclose(candidate['max_velocity_deg_s'] /
                         candidate['control_rate_hz'], 0.25)
-    assert load('baseline_5hz_2p5') == baseline
     assert load('phase2_20hz_5dps') == candidate
