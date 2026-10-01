@@ -1,0 +1,13 @@
+leader_mirabo_teleop:
+  ros__parameters:
+    require_origin: true
+    can_interface: can0
+    can_bitrate: 1000000
+    control_rate_hz: 40.0
+    can_read_rate_hz: 200.0
+    leader_timeout_sec: 0.5
+    feedback_timeout_sec: 0.5
+    max_step_deg: 0.5
+    max_velocity_deg_s: 2.5
+    max_acceleration_deg_s2: 12.5
+    filter_alpha: 1.0

@@ -1,0 +1,100 @@
+{
+  "bag": "phase2_20hz_5dps_20261001_180600",
+  "can_fault_observed": false,
+  "command_profile": {
+    "command_acceleration_configured": 1000,
+    "command_acceleration_raw": 100,
+    "command_speed_configured": 1000,
+    "command_speed_raw": 100,
+    "status": "RECORDED"
+  },
+  "configured_limits": {
+    "max_acceleration_deg_s2": 25.0,
+    "max_step_deg": 0.5,
+    "max_velocity_deg_s": 5.0
+  },
+  "event_counts": {
+    "can_bus_off_frames": 0,
+    "can_malformed_frames": 0,
+    "can_receive_errors": 0,
+    "can_warning_frames": 1080,
+    "command_errors": 0,
+    "motor_fault_events": 0
+  },
+  "fault_count": 0,
+  "joints": {
+    "0x68": {
+      "lag_status": "ESTIMATED",
+      "max_abs_command_error_rad": 0.16177203318658417,
+      "max_abs_limiter_gap_rad": 0.2531222455111084,
+      "max_abs_reference_error_rad": 0.39286342481246783,
+      "overshoot_estimate_rad": null,
+      "peak_command_velocity_rad_s": 0.08726646259971647,
+      "q_cmd_to_q_actual_lag_sec": 1.1799707412719727,
+      "q_des_to_q_cmd_lag_sec": 0.15000557899475098,
+      "q_filtered_samples": 916,
+      "q_leader_to_q_actual_lag_sec": 1.5599613189697266,
+      "response_status": "INSUFFICIENT STEP/HOLD",
+      "rms_command_error_rad": 0.07460497969859278,
+      "rms_limiter_gap_rad": 0.09368356004760331,
+      "rms_reference_error_rad": 0.15767344051018295,
+      "samples": {
+        "actual": 2289,
+        "command": 916,
+        "filtered": 916,
+        "leader": 916,
+        "reference": 916
+      },
+      "settling_estimate_sec": null,
+      "v_cmd_samples": 916
+    },
+    "0x69": {
+      "lag_status": "ESTIMATED",
+      "max_abs_command_error_rad": 0.1230852997350303,
+      "max_abs_limiter_gap_rad": 0.12517241305424404,
+      "max_abs_reference_error_rad": 0.23793335499203117,
+      "overshoot_estimate_rad": 0.06632932926817509,
+      "peak_command_velocity_rad_s": 0.08726646259971647,
+      "q_cmd_to_q_actual_lag_sec": 0.9199826717376709,
+      "q_des_to_q_cmd_lag_sec": 0.15000557899475098,
+      "q_filtered_samples": 916,
+      "q_leader_to_q_actual_lag_sec": 1.2999755144119263,
+      "response_status": "ESTIMATED",
+      "rms_command_error_rad": 0.042788817376025204,
+      "rms_limiter_gap_rad": 0.029486204220598,
+      "rms_reference_error_rad": 0.06472994956408325,
+      "samples": {
+        "actual": 2289,
+        "command": 916,
+        "filtered": 916,
+        "leader": 916,
+        "reference": 916
+      },
+      "settling_estimate_sec": 1.2986106872558594,
+      "v_cmd_samples": 916
+    }
+  },
+  "lag_method": "velocity cross-correlation of ROS-stamped samples",
+  "last_can_state": "ACTIVE",
+  "last_motor_fault_bytes": {
+    "0x68": 0,
+    "0x69": 0
+  },
+  "rates_hz": {
+    "can_tx": 36.56117433203337,
+    "control": 20.00017213241143,
+    "feedback_68": 50.00042033485913,
+    "feedback_69": 50.00038263792822,
+    "leader_rx": 20.000925160794438
+  },
+  "timing": {
+    "actual_control_rate_hz": 20.000415594209517,
+    "configured_control_rate_hz": 20.0,
+    "control_dt_max_ms": 57.80467500000001,
+    "control_dt_mean_ms": 49.99896103606557,
+    "control_dt_median_ms": 49.998744,
+    "control_dt_p95_ms": 51.0678268,
+    "control_interval_std_ms": 1.0627094047024108,
+    "control_jitter_p95_ms": 2.361319299999999
+  }
+}

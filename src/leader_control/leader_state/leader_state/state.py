@@ -8,6 +8,7 @@ from sensor_msgs.msg import JointState
 
 from feetech_driver import calibration as feetech_calibration
 from feetech_driver.calibration import CalibrationManager, encoder_offset
+from leader_state import origin as saved_origin
 
 
 JOINT_TO_MOTOR = {
@@ -46,6 +47,13 @@ class LeaderState(Node):
             self.get_parameter("calibration_file").value
         ).expanduser()
         self.calibration = self._load_calibration(calibration_file)
+        self.declare_parameter(
+            "origin_file", str(saved_origin.default_origin_file())
+        )
+        self.origin_file = Path(
+            self.get_parameter("origin_file").value
+        ).expanduser()
+        self.origin = saved_origin.load_origin(self.origin_file)
 
         self.subscription = self.create_subscription(
             JointState,
@@ -62,6 +70,8 @@ class LeaderState(Node):
         self.get_logger().info(
             f"Leader state started with calibration: {calibration_file}"
         )
+        if self.origin is not None:
+            self.get_logger().info(f"Leader software origin: {self.origin_file}")
 
     def _load_calibration(self, calibration_file):
         manager = CalibrationManager(calibration_file)
@@ -154,6 +164,8 @@ class LeaderState(Node):
 
             output_positions.append(
                 delta * calibration.direction * math.tau / ENCODER_COUNTS
+                - (self.origin["leader_radians"][joint]
+                   if self.origin is not None else 0.0)
             )
 
         state = JointState()

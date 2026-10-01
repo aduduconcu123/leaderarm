@@ -1,0 +1,63 @@
+Bag: phase2_20hz_5dps_20261001_180600
+Rates (Hz):
+  leader_rx: 20.000925160794438
+  control: 20.00017213241143
+  can_tx: 36.56117433203337
+  feedback_68: 50.00042033485913
+  feedback_69: 50.00038263792822
+Control timing:
+  configured_control_rate_hz: 20.0
+  actual_control_rate_hz: 20.000415594209517
+  control_dt_mean_ms: 49.99896103606557
+  control_dt_median_ms: 49.998744
+  control_dt_p95_ms: 51.0678268
+  control_dt_max_ms: 57.80467500000001
+  control_interval_std_ms: 1.0627094047024108
+  control_jitter_p95_ms: 2.361319299999999
+CAN fault observed: False
+Fault transitions: 0
+Event counts:
+  can_warning_frames: 1080
+  can_bus_off_frames: 0
+  can_malformed_frames: 0
+  motor_fault_events: 0
+  can_receive_errors: 0
+  command_errors: 0
+Mirabo command profile:
+  command_speed_configured: 1000
+  command_acceleration_configured: 1000
+  command_speed_raw: 100
+  command_acceleration_raw: 100
+  status: RECORDED
+
+0x68:
+  RMS reference error (rad): 0.15767344051018295
+  RMS command error (rad): 0.07460497969859278
+  RMS limiter gap (rad): 0.09368356004760331
+  Max abs reference error (rad): 0.39286342481246783
+  Max abs command error (rad): 0.16177203318658417
+  Max abs limiter gap (rad): 0.2531222455111084
+  q_cmd -> q_actual lag (s): 1.1799707412719727
+  q_des -> q_cmd lag (s): 0.15000557899475098
+  q_leader -> q_actual lag (s): 1.5599613189697266
+  Peak command velocity (rad/s): 0.08726646259971647
+  Overshoot estimate (rad): None
+  Settling estimate from command hold (s): None
+  Response status: INSUFFICIENT STEP/HOLD
+  ESTIMATED
+
+0x69:
+  RMS reference error (rad): 0.06472994956408325
+  RMS command error (rad): 0.042788817376025204
+  RMS limiter gap (rad): 0.029486204220598
+  Max abs reference error (rad): 0.23793335499203117
+  Max abs command error (rad): 0.1230852997350303
+  Max abs limiter gap (rad): 0.12517241305424404
+  q_cmd -> q_actual lag (s): 0.9199826717376709
+  q_des -> q_cmd lag (s): 0.15000557899475098
+  q_leader -> q_actual lag (s): 1.2999755144119263
+  Peak command velocity (rad/s): 0.08726646259971647
+  Overshoot estimate (rad): 0.06632932926817509
+  Settling estimate from command hold (s): 1.2986106872558594
+  Response status: ESTIMATED
+  ESTIMATED

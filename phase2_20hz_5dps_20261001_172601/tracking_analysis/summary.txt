@@ -1,0 +1,51 @@
+Bag: phase2_20hz_5dps_20261001_172601
+Rates (Hz):
+  leader_rx: 20.000598757925015
+  control: 20.000147433086816
+  can_tx: 39.801570506289664
+  feedback_68: 50.00027166147599
+  feedback_69: 50.00036241262684
+Control timing:
+  configured_control_rate_hz: 20.0
+  actual_control_rate_hz: 19.999774798208154
+  control_dt_mean_ms: 50.000563010819164
+  control_dt_median_ms: 50.000969000000005
+  control_dt_p95_ms: 50.70019905
+  control_dt_max_ms: 56.289044000000004
+  control_interval_std_ms: 0.8667698476962401
+  control_jitter_p95_ms: 1.6863876500000023
+CAN fault observed: False
+Fault transitions: 0
+Event counts:
+  can_warning_frames: 1412
+  can_bus_off_frames: 0
+  can_malformed_frames: 0
+  motor_fault_events: 0
+  can_receive_errors: 0
+  command_errors: 0
+
+0x68:
+  RMS reference error (rad): 0.13431788291449145
+  RMS command error (rad): 0.07347028067052198
+  RMS limiter gap (rad): 0.06654697214689291
+  Max abs reference error (rad): 0.449176845462478
+  Max abs command error (rad): 0.20083139172129108
+  Max abs limiter gap (rad): 0.27891036618865267
+  q_cmd -> q_actual lag (s): 0.7400257587432861
+  q_des -> q_cmd lag (s): 0.04999959468841553
+  q_leader -> q_actual lag (s): 0.880030632019043
+  Peak command velocity (rad/s): 0.08726646259971647
+  ESTIMATED
+
+0x69:
+  RMS reference error (rad): 0.12517014363390327
+  RMS command error (rad): 0.03552709232121912
+  RMS limiter gap (rad): 0.09824763735240917
+  Max abs reference error (rad): 0.5054414798485326
+  Max abs command error (rad): 0.11196696213087054
+  Max abs limiter gap (rad): 0.43634435366563606
+  q_cmd -> q_actual lag (s): 0.6000709533691406
+  q_des -> q_cmd lag (s): 0.04999959468841553
+  q_leader -> q_actual lag (s): 0.9401111602783203
+  Peak command velocity (rad/s): 0.08726646259971647
+  ESTIMATED

@@ -1,0 +1,87 @@
+{
+  "bag": "phase2_baseline_20261001_161139",
+  "can_fault_observed": false,
+  "configured_limits": {
+    "max_acceleration_deg_s2": 12.5,
+    "max_step_deg": 0.5,
+    "max_velocity_deg_s": 2.5
+  },
+  "event_counts": {
+    "can_bus_off_frames": 0,
+    "can_malformed_frames": 0,
+    "can_receive_errors": 0,
+    "can_warning_frames": 1311,
+    "command_errors": 0,
+    "motor_fault_events": 0
+  },
+  "fault_count": 0,
+  "joints": {
+    "0x68": {
+      "lag_status": "ESTIMATED",
+      "max_abs_command_error_rad": 0.02311069199175697,
+      "max_abs_limiter_gap_rad": 0.6602066554285709,
+      "max_abs_reference_error_rad": 0.678796725177982,
+      "peak_command_velocity_rad_s": 0.04363323129985824,
+      "q_cmd_to_q_actual_lag_sec": 0.4000091552734375,
+      "q_des_to_q_cmd_lag_sec": 9.599853515625,
+      "q_filtered_samples": 275,
+      "q_leader_to_q_actual_lag_sec": 9.900226593017578,
+      "rms_command_error_rad": 0.01660414658022708,
+      "rms_limiter_gap_rad": 0.2652133413666095,
+      "rms_reference_error_rad": 0.278730298953167,
+      "samples": {
+        "actual": 2985,
+        "command": 275,
+        "filtered": 275,
+        "leader": 1194,
+        "reference": 275
+      },
+      "v_cmd_samples": 275
+    },
+    "0x69": {
+      "lag_status": "ESTIMATED",
+      "max_abs_command_error_rad": 0.04521151558972636,
+      "max_abs_limiter_gap_rad": 0.617508041528882,
+      "max_abs_reference_error_rad": 0.6359066223486995,
+      "peak_command_velocity_rad_s": 0.04363323129985824,
+      "q_cmd_to_q_actual_lag_sec": 0.5800271034240723,
+      "q_des_to_q_cmd_lag_sec": 7.3998870849609375,
+      "q_filtered_samples": 275,
+      "q_leader_to_q_actual_lag_sec": 0.9200429916381836,
+      "rms_command_error_rad": 0.017490389677516448,
+      "rms_limiter_gap_rad": 0.2789016244444064,
+      "rms_reference_error_rad": 0.2937595737048255,
+      "samples": {
+        "actual": 2984,
+        "command": 275,
+        "filtered": 275,
+        "leader": 1194,
+        "reference": 275
+      },
+      "v_cmd_samples": 275
+    }
+  },
+  "lag_method": "velocity cross-correlation of ROS-stamped samples",
+  "last_can_state": "ACTIVE",
+  "last_motor_fault_bytes": {
+    "0x68": 0,
+    "0x69": 0
+  },
+  "rates_hz": {
+    "can_tx": 10.20701784862008,
+    "control": 5.000055286611513,
+    "feedback_68": 50.001042976777505,
+    "feedback_69": 50.00104595483357,
+    "leader_rx": 20.000595585785156
+  },
+  "timing": {
+    "actual_control_rate_hz": 4.999965122044643,
+    "configured_control_rate_hz": 5.0,
+    "control_dt_max_ms": 200.53398600000003,
+    "control_dt_mean_ms": 200.00139512794613,
+    "control_dt_median_ms": 200.00384300000002,
+    "control_dt_p95_ms": 200.29963160000003,
+    "control_interval_std_ms": 0.1830197049828719,
+    "control_jitter_p95_ms": 0.40080199999998894
+  }
+}

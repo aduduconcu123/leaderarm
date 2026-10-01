@@ -17,12 +17,24 @@ leader_state -> /leader/joint_states
 leader_controller teleop -> can0 -> Mirabo 0x68 / 0x69
 ```
 
-One command starts all three ROS nodes in one process. Add `--arm` to enable
-Mirabo control once all input streams are ready:
+One launch command starts the three nodes disarmed. Arm explicitly only after
+checking fresh leader and Mirabo feedback:
 
 ```bash
-ros2 run leader_controller teleop --arm
+ros2 launch leader_controller teleop.launch.py
+ros2 param set /leader_mirabo_teleop armed true
 ```
+
+To capture the current leader and both Mirabo poses as a persistent software
+zero, stop teleop first and run the read-only calibration command:
+
+```bash
+ros2 run leader_controller calibrate_origin --ros-args -p port:=/dev/ttyUSB0
+```
+
+It saves `~/.config/leader_controller/origin.json` without moving motors or
+changing their firmware zero. See the teleop guide for the safety checks and
+how to verify the new origin before arming.
 
 `leader_controller/leader_controller/controller.py` is retained for leader-arm
 forward kinematics, center-of-mass and gravity calculations. It is independent
@@ -42,15 +54,7 @@ configuration, node commands, status topics and explicit arming.
 
 Keep `src/leader_hardware/feetech_driver/calibration/calibration.json`: it is
 machine-specific data. Its editor is `tools/calibrate_keyboard.py` in the same
-package. `feetech_driver/test_motor.py` provides read-only diagnostics for all
-three leader motors; the package's `test/` also retains low-level Feetech checks.
-
-Hardware-free regression tests:
-
-```bash
-colcon test --packages-select leader_controller --pytest-args test/test_teleop.py
-colcon test --packages-select feetech_driver --pytest-args test/test_calibration_tool.py
-```
+package.
 
 `build/`, `install/`, `log/` and Python caches are generated output. Rebuilding
 recreates the three current packages; they are not source or calibration data.

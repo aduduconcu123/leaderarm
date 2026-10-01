@@ -1,0 +1,176 @@
+rosbag2_bagfile_information:
+  version: 9
+  storage_identifier: mcap
+  duration:
+    nanoseconds: 64710359164
+  starting_time:
+    nanoseconds_since_epoch: 1790850361975298639
+  message_count: 14243
+  topics_with_message_count:
+    - topic_metadata:
+        name: /leader_controller/mirabo_status
+        type: std_msgs/msg/String
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 0
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18
+      message_count: 1295
+    - topic_metadata:
+        name: /leader_controller/filtered_reference
+        type: sensor_msgs/msg/JointState
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 0
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: RIHS01_a13ee3a330e346c9d87b5aa18d24e11690752bd33a0350f11c5882bc9179260e
+      message_count: 1295
+    - topic_metadata:
+        name: /mirabo/joint_states
+        type: sensor_msgs/msg/JointState
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 0
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: RIHS01_a13ee3a330e346c9d87b5aa18d24e11690752bd33a0350f11c5882bc9179260e
+      message_count: 6473
+    - topic_metadata:
+        name: /leader_controller/diagnostics
+        type: std_msgs/msg/String
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 0
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: RIHS01_df668c740482bbd48fb39d76a70dfd4bd59db1288021743503259e948f6b1a18
+      message_count: 1295
+    - topic_metadata:
+        name: /leader_controller/reference
+        type: sensor_msgs/msg/JointState
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 0
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: RIHS01_a13ee3a330e346c9d87b5aa18d24e11690752bd33a0350f11c5882bc9179260e
+      message_count: 1295
+    - topic_metadata:
+        name: /leader_controller/command
+        type: sensor_msgs/msg/JointState
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 0
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: RIHS01_a13ee3a330e346c9d87b5aa18d24e11690752bd33a0350f11c5882bc9179260e
+      message_count: 1295
+    - topic_metadata:
+        name: /leader/joint_states
+        type: sensor_msgs/msg/JointState
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 0
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: RIHS01_a13ee3a330e346c9d87b5aa18d24e11690752bd33a0350f11c5882bc9179260e
+      message_count: 1295
+  compression_format: ""
+  compression_mode: ""
+  relative_file_paths:
+    - phase2_20hz_5dps_20261001_172601_0.mcap
+  files:
+    - path: phase2_20hz_5dps_20261001_172601_0.mcap
+      starting_time:
+        nanoseconds_since_epoch: 1790850361975298639
+      duration:
+        nanoseconds: 64710359164
+      message_count: 14243
+  custom_data: ~
+  ros_distro: jazzy

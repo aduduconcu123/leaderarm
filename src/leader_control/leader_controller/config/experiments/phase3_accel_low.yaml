@@ -1,0 +1,17 @@
+# Changed: command acceleration field 1000 -> 900 (encoded 100 -> 90).
+# Unchanged: command speed 1000 and all Phase 2 motion/safety settings.
+leader_mirabo_teleop:
+  ros__parameters:
+    require_origin: true
+    can_interface: can0
+    can_bitrate: 1000000
+    control_rate_hz: 20.0
+    can_read_rate_hz: 200.0
+    leader_timeout_sec: 0.5
+    feedback_timeout_sec: 0.5
+    max_step_deg: 0.5
+    max_velocity_deg_s: 5.0
+    max_acceleration_deg_s2: 25.0
+    filter_alpha: 1.0
+    mirabo_command_speed: 1000
+    mirabo_command_acceleration: 900

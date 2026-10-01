@@ -1,0 +1,18 @@
+/leader_mirabo_teleop:
+  ros__parameters:
+    armed: false
+    can_bitrate: 1000000
+    can_interface: can0
+    can_read_rate_hz: 200.0
+    control_rate_hz: 20.0
+    feedback_timeout_sec: 0.5
+    filter_alpha: 1.0
+    leader_timeout_sec: 0.5
+    max_acceleration_deg_s2: 25.0
+    max_step_deg: 0.5
+    max_velocity_deg_s: 5.0
+    origin_file: /home/phong/.config/leader_controller/origin.json
+    require_origin: true
+    start_type_description_service: true
+    use_sim_time: false
+

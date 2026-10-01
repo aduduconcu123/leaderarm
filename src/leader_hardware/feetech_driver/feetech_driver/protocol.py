@@ -23,6 +23,7 @@ class FeetechProtocol:
     """Low-level communication with Feetech STS-series motors."""
 
     HEADER = bytes([0xFF, 0xFF])
+    MAX_HEADER_SCAN_BYTES = 32
 
     PING = 0x01
     READ = 0x02
@@ -42,6 +43,7 @@ class FeetechProtocol:
             port=self.port,
             baudrate=self.baudrate,
             timeout=self.timeout,
+            exclusive=True,
         )
 
         # Prevent two commands from using the half-duplex bus at the same time.
@@ -115,18 +117,27 @@ class FeetechProtocol:
 
     def _read_response(self, expected_motor_id):
         """Read and validate one motor response."""
-        response = self.serial.read(4)
-
-        if len(response) < 4:
-            raise FeetechTimeoutError(
-                f"No response from motor {expected_motor_id}"
-            )
-
-        # Header check
-        if response[0] != 0xFF or response[1] != 0xFF:
+        # A stray byte may precede an otherwise valid reply on the shared
+        # half-duplex serial bus. Scan only a bounded prefix, then validate
+        # the complete packet as before.
+        header_bytes = 0
+        for _ in range(self.MAX_HEADER_SCAN_BYTES):
+            byte = self.serial.read(1)
+            if not byte:
+                raise FeetechTimeoutError(
+                    f"No response from motor {expected_motor_id}"
+                )
+            header_bytes = header_bytes + 1 if byte[0] == 0xFF else 0
+            if header_bytes == 2:
+                break
+        else:
             raise FeetechResponseError(
-                f"Invalid header: {response.hex()}"
+                f"No Feetech header within {self.MAX_HEADER_SCAN_BYTES} bytes"
             )
+
+        response = self.HEADER + self.serial.read(2)
+        if len(response) != 4:
+            raise FeetechTimeoutError("Incomplete motor response header")
 
         motor_id = response[2]
         length = response[3]

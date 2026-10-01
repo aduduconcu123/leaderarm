@@ -17,7 +17,7 @@ JOINT_TO_MOTOR = {
 
 
 class FeetechNode(Node):
-    def __init__(self):
+    def __init__(self, read_only=False):
         super().__init__("feetech_node")
 
         self.declare_parameter("port", "/dev/ttyUSB0")
@@ -30,9 +30,10 @@ class FeetechNode(Node):
         port = self.get_parameter("port").value
         baudrate = self.get_parameter("baudrate").value
         rate = float(self.get_parameter("publish_rate").value)
-        self.enable_commands = self.get_parameter(
-            "enable_commands"
-        ).value
+        self.enable_commands = (
+            bool(self.get_parameter("enable_commands").value)
+            and not read_only
+        )
 
         if not math.isfinite(rate) or rate <= 0:
             raise ValueError("publish_rate must be positive")
